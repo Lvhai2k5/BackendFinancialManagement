@@ -1,0 +1,22 @@
+#!/bin/sh
+# Kiểm tra tên nhánh theo 0.docs/CONVENTION.md
+branch=$(git rev-parse --abbrev-ref HEAD)
+
+case "$branch" in
+  main|develop|HEAD) ;;
+  *)
+    if ! printf '%s' "$branch" | grep -Eq '^((feature|bugfix|hotfix|refactor)/US[0-9]+|release/v[0-9]+\.[0-9]+\.[0-9]+)$'; then
+      echo "ERROR: ten nhanh '$branch' khong dung quy uoc."
+      echo "  Dinh dang : <feature|bugfix|hotfix|refactor>/<US_ID>  (vd: feature/US114)"
+      echo "              release/v<major>.<minor>.<patch>          (vd: release/v1.3.0)"
+      echo "Doi ten nhanh: git branch -m <ten-moi>"
+      exit 1
+    fi
+    ;;
+esac
+
+# main và develop chỉ nhận thay đổi qua Pull Request
+if [ "$branch" = "main" ] || [ "$branch" = "develop" ]; then
+  echo "ERROR: khong push truc tiep len '$branch'. Tao nhanh va mo Pull Request."
+  exit 1
+fi

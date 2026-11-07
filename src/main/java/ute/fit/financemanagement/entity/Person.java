@@ -31,4 +31,16 @@ public class Person {
     private String phone;
 
     private String avatar;
+
+    public void updateProfile(String name, String phone, String email) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Họ tên không được để trống");
+        }
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("Email không được để trống");
+        }
+        this.name = name.trim();
+        this.phone = phone == null || phone.isBlank() ? null : phone.trim();
+        this.email = email.trim();
+    }
 }
