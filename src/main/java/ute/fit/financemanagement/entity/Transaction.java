@@ -52,6 +52,10 @@ public class Transaction {
     @Column(columnDefinition = "text")
     private String rawData;
 
+    /** Thời điểm tạo — Mobile sắp xếp/nhóm danh sách giao dịch theo ngày. */
+    @Builder.Default
+    private java.time.LocalDateTime createdAt = java.time.LocalDateTime.now();
+
     public void approveTransaction() {
         requireAwaitingDecision();
         this.transactionStatus = TransactionStatus.APPROVED;

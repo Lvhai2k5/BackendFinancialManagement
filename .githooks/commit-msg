@@ -1,0 +1,19 @@
+#!/bin/sh
+# Kiểm tra thông điệp commit theo 0.docs/CONVENTION.md
+msg_file="$1"
+first_line=$(head -n 1 "$msg_file")
+
+case "$first_line" in
+  Merge\ *|Revert\ *|fixup!*|squash!*) exit 0 ;;
+esac
+
+pattern='^(feat|fix|refactor|docs|test|chore|style|perf|build|ci)(\([a-z0-9._/-]+\))?!?: .+'
+if ! printf '%s' "$first_line" | grep -Eq "$pattern"; then
+  echo "ERROR: thong diep commit khong dung quy uoc."
+  echo "  Dinh dang : <type>(scope): <description>"
+  echo "  type      : feat|fix|refactor|docs|test|chore|style|perf|build|ci"
+  echo "  Vi du     : feat(search): add customer filtering"
+  echo "  Hien tai  : $first_line"
+  echo "Xem 0.docs/CONVENTION.md"
+  exit 1
+fi

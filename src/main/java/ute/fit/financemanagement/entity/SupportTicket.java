@@ -36,6 +36,10 @@ public class SupportTicket {
 
     private Long answeredPersonId;
 
+    /** Thời điểm gửi ticket — Web admin hiển thị/sắp xếp theo cột này. */
+    @Builder.Default
+    private java.time.LocalDateTime createdAt = java.time.LocalDateTime.now();
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
