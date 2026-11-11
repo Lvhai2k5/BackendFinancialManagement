@@ -4,6 +4,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import java.math.BigDecimal;
+import java.util.List;
+import ute.fit.financemanagement.enums.FamilyPermission;
 
 public final class FamilyRequests {
 
@@ -15,6 +17,13 @@ public final class FamilyRequests {
 
     /** `code` dạng "#FN-204" hoặc "204". */
     public record JoinFamily(@NotBlank(message = "Mã gia đình không được để trống") String code) {
+    }
+
+    public record AddMember(@NotBlank(message = "Tên tài khoản không được để trống") String username) {
+    }
+
+    public record UpdatePermissions(
+            @NotNull(message = "Thiếu danh sách quyền") List<FamilyPermission> permissions) {
     }
 
     public record CreateCategory(
