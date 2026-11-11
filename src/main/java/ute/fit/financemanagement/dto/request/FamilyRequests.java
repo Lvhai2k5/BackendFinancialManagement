@@ -19,7 +19,8 @@ public final class FamilyRequests {
     public record JoinFamily(@NotBlank(message = "Mã gia đình không được để trống") String code) {
     }
 
-    public record AddMember(@NotBlank(message = "Tên tài khoản không được để trống") String username) {
+    /** Thêm thành viên bằng email (ưu tiên) hoặc tên đăng nhập; cần ít nhất một trong hai. */
+    public record AddMember(String email, String username) {
     }
 
     public record UpdatePermissions(

@@ -85,15 +85,30 @@ public class FamilyServiceImpl implements FamilyService {
     public FamilyResponses.Detail addMember(Long familyId, FamilyRequests.AddMember request, Long personId) {
         Family family = access.requireFamily(familyId);
         access.requireOwner(family, personId);
-        Long memberId = accountRepository.findByUsernameIgnoreCase(request.username().trim())
-                .map(Account::getPersonId)
-                .orElseThrow(() -> ApiException.notFound("Không tìm thấy tài khoản FinNest này"));
+        Long memberId = resolveMemberId(request);
         if (family.getMemberships().stream().anyMatch(m -> m.getPersonId().equals(memberId))) {
             throw ApiException.conflict("Người này đã là thành viên của gia đình");
         }
         family.addMember(memberId, List.of(FamilyPermission.READ, FamilyPermission.WRITE));
         familyRepository.save(family);
         return detailOf(family, personId);
+    }
+
+    /** Tìm người cần thêm: ưu tiên email, không có thì dùng tên đăng nhập. */
+    private Long resolveMemberId(FamilyRequests.AddMember request) {
+        String email = request.email() == null ? "" : request.email().trim();
+        String username = request.username() == null ? "" : request.username().trim();
+        if (!email.isEmpty()) {
+            return personRepository.findByEmailIgnoreCase(email)
+                    .map(Person::getPersonId)
+                    .orElseThrow(() -> ApiException.notFound("Không tìm thấy tài khoản FinNest với email này"));
+        }
+        if (!username.isEmpty()) {
+            return accountRepository.findByUsernameIgnoreCase(username)
+                    .map(Account::getPersonId)
+                    .orElseThrow(() -> ApiException.notFound("Không tìm thấy tài khoản FinNest này"));
+        }
+        throw ApiException.badRequest("Vui lòng nhập email của người cần thêm");
     }
 
     @Override
