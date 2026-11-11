@@ -37,6 +37,10 @@ public final class AuthRequests {
         }
     }
 
+    public record GoogleLogin(
+            @NotBlank(message = "Thiếu mã xác thực Google") String idToken) {
+    }
+
     public record Refresh(@NotBlank(message = "Thiếu refresh token") String refreshToken) {
     }
 

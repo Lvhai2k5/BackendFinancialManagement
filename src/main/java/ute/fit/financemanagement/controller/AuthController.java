@@ -26,6 +26,12 @@ public class AuthController {
         return authService.login(request, http.getRemoteAddr());
     }
 
+    @PostMapping("/google")
+    public AuthResponse loginWithGoogle(@Valid @RequestBody AuthRequests.GoogleLogin request,
+                                        HttpServletRequest http) {
+        return authService.loginWithGoogle(request, http.getRemoteAddr());
+    }
+
     @PostMapping("/register")
     public ResponseEntity<MessageResponse> register(@Valid @RequestBody AuthRequests.Register request,
                                                     HttpServletRequest http) {

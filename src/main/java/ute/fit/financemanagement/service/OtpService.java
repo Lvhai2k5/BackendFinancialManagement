@@ -12,8 +12,8 @@ import ute.fit.financemanagement.enums.OtpPurpose;
 import ute.fit.financemanagement.exception.ApiException;
 
 /**
- * OTP lưu trong bộ nhớ (đủ cho phạm vi khoá luận, mất khi restart). Chưa gửi mail:
- * mã được ghi vào log; đặt OTP_FIXED_CODE để dev dùng mã cố định.
+ * OTP lưu trong bộ nhớ (đủ cho phạm vi khoá luận, mất khi restart). Gửi qua Gmail khi đã cấu hình
+ * MAIL_USERNAME/MAIL_PASSWORD; nếu chưa thì mã chỉ ghi vào log (đặt OTP_FIXED_CODE để dev dùng mã cố định).
  */
 @Slf4j
 @Service

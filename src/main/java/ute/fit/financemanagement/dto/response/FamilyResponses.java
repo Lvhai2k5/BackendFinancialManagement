@@ -10,7 +10,7 @@ public final class FamilyResponses {
     }
 
     /** role: OWNER | MEMBER */
-    public record Member(Long personId, String name, String role) {
+    public record Member(Long personId, String name, String role, List<String> permissions) {
     }
 
     public record Summary(Long familyId, String code, String name, String myRole,
@@ -27,6 +27,6 @@ public final class FamilyResponses {
     public record Detail(Long familyId, String code, String name, String myRole,
                          BigDecimal totalBudget, double budgetGrowthPercent, String foundedLabel,
                          List<Member> members, List<Category> categories,
-                         BigDecimal totalIncome, BigDecimal totalExpense) {
+                         BigDecimal totalIncome, BigDecimal totalExpense, List<String> myPermissions) {
     }
 }

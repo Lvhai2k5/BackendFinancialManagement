@@ -5,6 +5,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,6 +45,30 @@ public class FamilyController {
     @PostMapping("/families/join")
     public FamilyResponses.Detail join(@Valid @RequestBody FamilyRequests.JoinFamily request) {
         return familyService.join(request, CurrentUser.get().personId());
+    }
+
+    @PostMapping("/families/{familyId}/members")
+    public ResponseEntity<FamilyResponses.Detail> addMember(
+            @PathVariable Long familyId, @Valid @RequestBody FamilyRequests.AddMember request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(familyService.addMember(familyId, request, CurrentUser.get().personId()));
+    }
+
+    @DeleteMapping("/families/{familyId}/members/{memberId}")
+    public FamilyResponses.Detail removeMember(@PathVariable Long familyId, @PathVariable Long memberId) {
+        return familyService.removeMember(familyId, memberId, CurrentUser.get().personId());
+    }
+
+    @PutMapping("/families/{familyId}/members/{memberId}/permissions")
+    public FamilyResponses.Detail updatePermissions(
+            @PathVariable Long familyId, @PathVariable Long memberId,
+            @Valid @RequestBody FamilyRequests.UpdatePermissions request) {
+        return familyService.updatePermissions(familyId, memberId, request, CurrentUser.get().personId());
+    }
+
+    @PostMapping("/families/{familyId}/members/{memberId}/transfer-ownership")
+    public FamilyResponses.Detail transferOwnership(@PathVariable Long familyId, @PathVariable Long memberId) {
+        return familyService.transferOwnership(familyId, memberId, CurrentUser.get().personId());
     }
 
     @PostMapping("/families/{familyId}/financial-categories")
