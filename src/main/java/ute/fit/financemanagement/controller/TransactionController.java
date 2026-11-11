@@ -35,6 +35,11 @@ public class TransactionController {
         return transactionService.list(CurrentUser.get().personId(), familyId, pageable);
     }
 
+    @GetMapping("/{transactionId}")
+    public TransactionResponse get(@PathVariable Long transactionId) {
+        return transactionService.get(transactionId, CurrentUser.get().personId());
+    }
+
     @PostMapping
     public ResponseEntity<TransactionResponse> create(@Valid @RequestBody TransactionRequests.Create request) {
         return ResponseEntity.status(HttpStatus.CREATED)
