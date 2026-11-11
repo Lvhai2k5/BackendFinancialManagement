@@ -98,6 +98,8 @@ public class TransactionServiceImpl implements TransactionService {
                 .transactionType(request.transactionType())
                 .transactionStatus(needApproval ? TransactionStatus.PENDING : TransactionStatus.APPROVED)
                 .createdPersonId(personId)
+                // Nhập thủ công: dữ liệu gốc chính là nội dung người dùng đã nhập, giữ làm bằng chứng.
+                .rawData(request.content())
                 .build());
         return toResponses(List.of(saved), List.of(category)).get(0);
     }
