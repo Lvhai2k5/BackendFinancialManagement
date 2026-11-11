@@ -62,6 +62,16 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public TransactionResponse get(Long transactionId, Long personId) {
+        Transaction tx = transactionRepository.findById(transactionId)
+                .orElseThrow(() -> ApiException.notFound("Không tìm thấy giao dịch"));
+        FinancialCategory category = requireCategory(tx.getFinancialCategoryId());
+        access.requireMember(access.requireFamily(category.getFamilyId()), personId);
+        return toResponses(List.of(tx), List.of(category)).get(0);
+    }
+
+    @Override
     @Transactional
     public TransactionResponse create(TransactionRequests.Create request, Long personId) {
         FinancialCategory category = requireCategory(request.financialCategoryId());

@@ -14,6 +14,15 @@ public interface FamilyService {
 
     FamilyResponses.Detail join(FamilyRequests.JoinFamily request, Long personId);
 
+    FamilyResponses.Detail addMember(Long familyId, FamilyRequests.AddMember request, Long personId);
+
+    FamilyResponses.Detail removeMember(Long familyId, Long memberId, Long personId);
+
+    FamilyResponses.Detail updatePermissions(Long familyId, Long memberId,
+                                             FamilyRequests.UpdatePermissions request, Long personId);
+
+    FamilyResponses.Detail transferOwnership(Long familyId, Long memberId, Long personId);
+
     FamilyResponses.Category createCategory(Long familyId, FamilyRequests.CreateCategory request, Long personId);
 
     FamilyResponses.Category updateThreshold(Long categoryId, FamilyRequests.UpdateThreshold request, Long personId);

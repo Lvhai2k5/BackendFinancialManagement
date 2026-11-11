@@ -22,6 +22,7 @@ import ute.fit.financemanagement.repository.PersonRepository;
 import ute.fit.financemanagement.security.CurrentUser;
 import ute.fit.financemanagement.security.JwtService;
 import ute.fit.financemanagement.service.AuthService;
+import ute.fit.financemanagement.service.GoogleTokenVerifier;
 import ute.fit.financemanagement.service.OtpService;
 
 @Service
@@ -29,6 +30,8 @@ import ute.fit.financemanagement.service.OtpService;
 public class AuthServiceImpl implements AuthService {
 
     private static final String BAD_CREDENTIALS = "Tên tài khoản hoặc mật khẩu không đúng.";
+    private static final String GOOGLE_NOT_LINKED =
+            "Email Google này chưa được liên kết với tài khoản FinNest nào.";
 
     private final PersonRepository personRepository;
     private final AccountRepository accountRepository;
@@ -36,6 +39,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final OtpService otpService;
+    private final GoogleTokenVerifier googleTokenVerifier;
 
     @Override
     @Transactional
@@ -55,6 +59,31 @@ public class AuthServiceImpl implements AuthService {
             throw ApiException.forbidden("Tài khoản chưa được kích hoạt hoặc đã bị khoá.");
         }
         log(ActionType.LOGIN, ActivityStatus.SUCCESS, "Đăng nhập thành công", ipAddress, account.getPersonId());
+        return tokens(account.getPersonId(), account.getAccountRole());
+    }
+
+    /**
+     * Không đánh dấu @Transactional: ActivityLog "thất bại" phải được lưu độc lập, nếu không sẽ bị
+     * rollback cùng lúc với ApiException ném ra bên dưới.
+     */
+    @Override
+    public AuthResponse loginWithGoogle(AuthRequests.GoogleLogin request, String ipAddress) {
+        GoogleTokenVerifier.GoogleIdentity identity = googleTokenVerifier.verify(request.idToken().trim());
+
+        Person person = personRepository.findByEmailIgnoreCase(identity.email()).orElse(null);
+        Account account = person == null ? null : accountRepository.findByPersonId(person.getPersonId()).orElse(null);
+        if (account == null) {
+            log(ActionType.LOGIN, ActivityStatus.FAILED,
+                    "Đăng nhập Google thất bại: email chưa liên kết " + identity.email(), ipAddress, null);
+            throw ApiException.unauthorized(GOOGLE_NOT_LINKED);
+        }
+        if (account.getAccountStatus() != AccountStatus.ACTIVE) {
+            log(ActionType.LOGIN, ActivityStatus.FAILED,
+                    "Đăng nhập Google bị từ chối: tài khoản không hoạt động", ipAddress, account.getPersonId());
+            throw ApiException.forbidden("Tài khoản chưa được kích hoạt hoặc đã bị khoá.");
+        }
+        log(ActionType.LOGIN, ActivityStatus.SUCCESS, "Đăng nhập Google thành công", ipAddress,
+                account.getPersonId());
         return tokens(account.getPersonId(), account.getAccountRole());
     }
 

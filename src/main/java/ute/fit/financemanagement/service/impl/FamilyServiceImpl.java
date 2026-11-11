@@ -13,7 +13,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ute.fit.financemanagement.dto.request.FamilyRequests;
 import ute.fit.financemanagement.dto.response.FamilyResponses;
+import ute.fit.financemanagement.entity.Account;
 import ute.fit.financemanagement.entity.Family;
+import ute.fit.financemanagement.enums.FamilyMemberRole;
+import ute.fit.financemanagement.repository.AccountRepository;
 import ute.fit.financemanagement.entity.FinancialCategory;
 import ute.fit.financemanagement.entity.Membership;
 import ute.fit.financemanagement.entity.Person;
@@ -39,6 +42,7 @@ public class FamilyServiceImpl implements FamilyService {
     private final FinancialCategoryRepository categoryRepository;
     private final TransactionRepository transactionRepository;
     private final PersonRepository personRepository;
+    private final AccountRepository accountRepository;
     private final FamilyAccess access;
 
     @Override
@@ -74,6 +78,88 @@ public class FamilyServiceImpl implements FamilyService {
         family.addMember(personId, List.of(FamilyPermission.READ, FamilyPermission.WRITE));
         familyRepository.save(family);
         return detailOf(family, personId);
+    }
+
+    @Override
+    @Transactional
+    public FamilyResponses.Detail addMember(Long familyId, FamilyRequests.AddMember request, Long personId) {
+        Family family = access.requireFamily(familyId);
+        access.requireOwner(family, personId);
+        Long memberId = resolveMemberId(request);
+        if (family.getMemberships().stream().anyMatch(m -> m.getPersonId().equals(memberId))) {
+            throw ApiException.conflict("Người này đã là thành viên của gia đình");
+        }
+        family.addMember(memberId, List.of(FamilyPermission.READ, FamilyPermission.WRITE));
+        familyRepository.save(family);
+        return detailOf(family, personId);
+    }
+
+    /** Tìm người cần thêm: ưu tiên email, không có thì dùng tên đăng nhập. */
+    private Long resolveMemberId(FamilyRequests.AddMember request) {
+        String email = request.email() == null ? "" : request.email().trim();
+        String username = request.username() == null ? "" : request.username().trim();
+        if (!email.isEmpty()) {
+            return personRepository.findByEmailIgnoreCase(email)
+                    .map(Person::getPersonId)
+                    .orElseThrow(() -> ApiException.notFound("Không tìm thấy tài khoản FinNest với email này"));
+        }
+        if (!username.isEmpty()) {
+            return accountRepository.findByUsernameIgnoreCase(username)
+                    .map(Account::getPersonId)
+                    .orElseThrow(() -> ApiException.notFound("Không tìm thấy tài khoản FinNest này"));
+        }
+        throw ApiException.badRequest("Vui lòng nhập email của người cần thêm");
+    }
+
+    @Override
+    @Transactional
+    public FamilyResponses.Detail removeMember(Long familyId, Long memberId, Long personId) {
+        Family family = access.requireFamily(familyId);
+        access.requireOwner(family, personId);
+        Membership target = requireTarget(family, memberId);
+        if (access.isOwner(target)) {
+            throw ApiException.badRequest("Không thể xóa Chủ hộ. Hãy chuyển vai trò Chủ hộ trước.");
+        }
+        family.removeMember(memberId);
+        familyRepository.save(family);
+        return detailOf(family, personId);
+    }
+
+    @Override
+    @Transactional
+    public FamilyResponses.Detail updatePermissions(Long familyId, Long memberId,
+                                                    FamilyRequests.UpdatePermissions request, Long personId) {
+        Family family = access.requireFamily(familyId);
+        access.requireOwner(family, personId);
+        if (access.isOwner(requireTarget(family, memberId))) {
+            throw ApiException.badRequest("Chủ hộ luôn có đầy đủ quyền.");
+        }
+        family.adjustPermission(memberId, request.permissions().stream().distinct().toList());
+        familyRepository.save(family);
+        return detailOf(family, personId);
+    }
+
+    @Override
+    @Transactional
+    public FamilyResponses.Detail transferOwnership(Long familyId, Long memberId, Long personId) {
+        Family family = access.requireFamily(familyId);
+        access.requireOwner(family, personId);
+        if (access.isOwner(requireTarget(family, memberId))) {
+            throw ApiException.badRequest("Người này đã là Chủ hộ.");
+        }
+        family.changeFamilyMemberRole(memberId, FamilyMemberRole.OWNER);
+        family.adjustPermission(memberId, List.of(FamilyPermission.values()));
+        family.changeFamilyMemberRole(personId, FamilyMemberRole.MEMBER);
+        family.adjustPermission(personId, List.of(FamilyPermission.READ, FamilyPermission.WRITE));
+        familyRepository.save(family);
+        return detailOf(family, personId);
+    }
+
+    private Membership requireTarget(Family family, Long memberId) {
+        return family.getMemberships().stream()
+                .filter(m -> m.getPersonId().equals(memberId))
+                .findFirst()
+                .orElseThrow(() -> ApiException.notFound("Thành viên không thuộc gia đình này"));
     }
 
     @Override
@@ -149,7 +235,8 @@ public class FamilyServiceImpl implements FamilyService {
         }
         return new FamilyResponses.Detail(family.getFamilyId(), code(family), family.getName(),
                 roleOf(family, personId), totalLimit.add(income).subtract(expense), 0.0, "",
-                members(family), categoryResponses, income, expense);
+                members(family), categoryResponses, income, expense,
+                access.requireMember(family, personId).getPermissions().stream().map(Enum::name).toList());
     }
 
     private FamilyResponses.Category categoryResponse(FinancialCategory c, BigDecimal spent, int percent) {
@@ -182,7 +269,8 @@ public class FamilyServiceImpl implements FamilyService {
         return family.getMemberships().stream()
                 .map(m -> new FamilyResponses.Member(m.getPersonId(),
                         persons.containsKey(m.getPersonId()) ? persons.get(m.getPersonId()).getName() : "?",
-                        m.getFamilyMemberRole().name()))
+                        m.getFamilyMemberRole().name(),
+                        m.getPermissions().stream().map(Enum::name).toList()))
                 .toList();
     }
 

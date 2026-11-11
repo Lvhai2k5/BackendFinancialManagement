@@ -63,6 +63,14 @@ public class Family {
         memberships.add(new Membership(personId, FamilyMemberRole.MEMBER, permissions));
     }
 
+    public void removeMember(Long personId) {
+        Membership target = requireMembership(personId);
+        if (target.isOwner() && countOwners() == 1) {
+            throw new IllegalStateException("Gia đình phải luôn có ít nhất 1 Owner");
+        }
+        memberships.remove(target);
+    }
+
     public void changeFamilyMemberRole(Long personId, FamilyMemberRole newRole) {
         Membership target = requireMembership(personId);
         if (target.isOwner() && newRole != FamilyMemberRole.OWNER && countOwners() == 1) {
