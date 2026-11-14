@@ -71,6 +71,18 @@ public class Family {
         memberships.remove(target);
     }
 
+    public void transferOwnership(Long ownerId, Long successorId) {
+        Membership owner = requireMembership(ownerId);
+        Membership successor = requireMembership(successorId);
+        if (!owner.isOwner() || successor.isOwner() || countOwners() != 1) {
+            throw new IllegalStateException("Không thể chuyển vai trò Chủ hộ");
+        }
+        successor.changeRole(FamilyMemberRole.OWNER);
+        owner.changeRole(FamilyMemberRole.MEMBER);
+        owner.replacePermissions(List.of(FamilyPermission.READ, FamilyPermission.WRITE));
+        inviteVersion = UUID.randomUUID();
+    }
+
     public void changeFamilyMemberRole(Long personId, FamilyMemberRole newRole) {
         Membership target = requireMembership(personId);
         if (target.isOwner() && newRole != FamilyMemberRole.OWNER && countOwners() == 1) {

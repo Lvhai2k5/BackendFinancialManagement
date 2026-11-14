@@ -44,6 +44,12 @@ public class Account {
     @Builder.Default
     private AccountStatus accountStatus = AccountStatus.ACTIVE;
 
+    private Boolean activationPending;
+
+    public boolean isActivationPending() {
+        return Boolean.TRUE.equals(activationPending);
+    }
+
     public void changePassword(String encodedPassword) {
         if (encodedPassword == null || encodedPassword.isBlank()) {
             throw new IllegalArgumentException("Mật khẩu không được để trống");
@@ -53,9 +59,11 @@ public class Account {
 
     public void lockAccount() {
         this.accountStatus = AccountStatus.INACTIVE;
+        this.activationPending = false;
     }
 
     public void unlockAccount() {
         this.accountStatus = AccountStatus.ACTIVE;
+        this.activationPending = false;
     }
 }
