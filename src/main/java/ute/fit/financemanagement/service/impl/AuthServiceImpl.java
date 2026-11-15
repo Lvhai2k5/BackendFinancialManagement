@@ -1,5 +1,7 @@
 package ute.fit.financemanagement.service.impl;
 
+import java.util.Locale;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -30,9 +32,6 @@ import ute.fit.financemanagement.service.OtpService;
 public class AuthServiceImpl implements AuthService {
 
     private static final String BAD_CREDENTIALS = "Tên tài khoản hoặc mật khẩu không đúng.";
-    private static final String GOOGLE_NOT_LINKED =
-            "Email Google này chưa được liên kết với tài khoản FinNest nào.";
-
     private final PersonRepository personRepository;
     private final AccountRepository accountRepository;
     private final ActivityLogRepository activityLogRepository;
@@ -62,29 +61,60 @@ public class AuthServiceImpl implements AuthService {
         return tokens(account.getPersonId(), account.getAccountRole());
     }
 
-    /**
-     * Không đánh dấu @Transactional: ActivityLog "thất bại" phải được lưu độc lập, nếu không sẽ bị
-     * rollback cùng lúc với ApiException ném ra bên dưới.
-     */
     @Override
+    @Transactional(noRollbackFor = ApiException.class)
     public AuthResponse loginWithGoogle(AuthRequests.GoogleLogin request, String ipAddress) {
         GoogleTokenVerifier.GoogleIdentity identity = googleTokenVerifier.verify(request.idToken().trim());
+        String email = identity.email().trim().toLowerCase(Locale.ROOT);
 
-        Person person = personRepository.findByEmailIgnoreCase(identity.email()).orElse(null);
-        Account account = person == null ? null : accountRepository.findByPersonId(person.getPersonId()).orElse(null);
-        if (account == null) {
-            log(ActionType.LOGIN, ActivityStatus.FAILED,
-                    "Đăng nhập Google thất bại: email chưa liên kết " + identity.email(), ipAddress, null);
-            throw ApiException.unauthorized(GOOGLE_NOT_LINKED);
+        Person person = personRepository.findByEmailIgnoreCase(email).orElse(null);
+        boolean created = false;
+        if (person == null) {
+            String name = identity.name() == null || identity.name().isBlank()
+                    ? email.substring(0, email.indexOf('@'))
+                    : identity.name().trim();
+            person = personRepository.save(Person.builder()
+                    .name(name)
+                    .email(email)
+                    .build());
+            created = true;
         }
+
+        Account account = accountRepository.findByPersonId(person.getPersonId()).orElse(null);
+        if (account == null) {
+            account = Account.builder()
+                    .personId(person.getPersonId())
+                    .username(newGoogleUsername())
+                    // Google verified this email; use a random, undisclosed password hash.
+                    .password(passwordEncoder.encode(UUID.randomUUID().toString()))
+                    .accountRole(AccountRole.USER)
+                    .accountStatus(AccountStatus.ACTIVE)
+                    .activationPending(false)
+                    .build();
+            accountRepository.save(account);
+            created = true;
+        }
+
         if (account.getAccountStatus() != AccountStatus.ACTIVE) {
             log(ActionType.LOGIN, ActivityStatus.FAILED,
                     "Đăng nhập Google bị từ chối: tài khoản không hoạt động", ipAddress, account.getPersonId());
             throw ApiException.forbidden("Tài khoản chưa được kích hoạt hoặc đã bị khoá.");
         }
+        if (created) {
+            log(ActionType.REGISTER, ActivityStatus.SUCCESS,
+                    "Tạo tài khoản tự động qua Google", ipAddress, person.getPersonId());
+        }
         log(ActionType.LOGIN, ActivityStatus.SUCCESS, "Đăng nhập Google thành công", ipAddress,
                 account.getPersonId());
         return tokens(account.getPersonId(), account.getAccountRole());
+    }
+
+    private String newGoogleUsername() {
+        String username;
+        do {
+            username = "google_" + UUID.randomUUID().toString().replace("-", "");
+        } while (accountRepository.existsByUsernameIgnoreCase(username));
+        return username;
     }
 
     @Override

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -90,31 +91,49 @@ class AuthServiceImplGoogleLoginTest {
     }
 
     @Test
-    void rejectsWhenGoogleEmailIsNotLinkedToAnyAccount() {
+    void createsAndLogsInAccountForNewVerifiedGoogleEmail() {
         when(googleTokenVerifier.verify("id-token"))
-                .thenReturn(new GoogleTokenVerifier.GoogleIdentity("lạ@gmail.com", "Lạ"));
-        when(personRepository.findByEmailIgnoreCase("lạ@gmail.com")).thenReturn(Optional.empty());
+                .thenReturn(new GoogleTokenVerifier.GoogleIdentity("New.User@example.com", "New User"));
+        when(personRepository.findByEmailIgnoreCase("new.user@example.com")).thenReturn(Optional.empty());
+        when(personRepository.save(any(Person.class))).thenReturn(person(21L, "new.user@example.com"));
+        when(accountRepository.findByPersonId(21L)).thenReturn(Optional.empty());
+        when(accountRepository.existsByUsernameIgnoreCase(any())).thenReturn(false);
+        when(passwordEncoder.encode(any())).thenReturn("one-way-random-password-hash");
+        when(jwtService.createAccessToken(21L, AccountRole.USER)).thenReturn("access");
+        when(jwtService.createRefreshToken(21L, AccountRole.USER)).thenReturn("refresh");
 
-        assertThatThrownBy(() -> service.loginWithGoogle(REQUEST, IP))
-                .isInstanceOfSatisfying(ApiException.class,
-                        e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED));
+        AuthResponse response = service.loginWithGoogle(REQUEST, IP);
 
-        ArgumentCaptor<ActivityLog> log = ArgumentCaptor.forClass(ActivityLog.class);
-        verify(activityLogRepository).save(log.capture());
-        assertThat(log.getValue().getActivityStatus()).isEqualTo(ActivityStatus.FAILED);
-        verify(jwtService, never()).createAccessToken(any(), any());
+        assertThat(response.accessToken()).isEqualTo("access");
+        assertThat(response.refreshToken()).isEqualTo("refresh");
+        ArgumentCaptor<Account> account = ArgumentCaptor.forClass(Account.class);
+        verify(accountRepository).save(account.capture());
+        assertThat(account.getValue().getPersonId()).isEqualTo(21L);
+        assertThat(account.getValue().getUsername()).startsWith("google_");
+        assertThat(account.getValue().getPassword()).isEqualTo("one-way-random-password-hash");
+        assertThat(account.getValue().getAccountRole()).isEqualTo(AccountRole.USER);
+        assertThat(account.getValue().getAccountStatus()).isEqualTo(AccountStatus.ACTIVE);
+        ArgumentCaptor<ActivityLog> logs = ArgumentCaptor.forClass(ActivityLog.class);
+        verify(activityLogRepository, times(2)).save(logs.capture());
+        assertThat(logs.getAllValues()).extracting(ActivityLog::getActivityStatus)
+                .containsOnly(ActivityStatus.SUCCESS);
     }
 
     @Test
-    void rejectsWhenPersonHasNoAccount() {
+    void createsAccountWhenVerifiedGoogleEmailMatchesPersonWithoutAccount() {
         when(googleTokenVerifier.verify("id-token"))
                 .thenReturn(new GoogleTokenVerifier.GoogleIdentity("an@gmail.com", "An"));
         when(personRepository.findByEmailIgnoreCase("an@gmail.com")).thenReturn(Optional.of(person(7L, "an@gmail.com")));
         when(accountRepository.findByPersonId(7L)).thenReturn(Optional.empty());
+        when(accountRepository.existsByUsernameIgnoreCase(any())).thenReturn(false);
+        when(passwordEncoder.encode(any())).thenReturn("one-way-random-password-hash");
+        when(jwtService.createAccessToken(7L, AccountRole.USER)).thenReturn("access");
+        when(jwtService.createRefreshToken(7L, AccountRole.USER)).thenReturn("refresh");
 
-        assertThatThrownBy(() -> service.loginWithGoogle(REQUEST, IP))
-                .isInstanceOfSatisfying(ApiException.class,
-                        e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED));
+        AuthResponse response = service.loginWithGoogle(REQUEST, IP);
+
+        assertThat(response.accessToken()).isEqualTo("access");
+        verify(accountRepository).save(any(Account.class));
     }
 
     @Test

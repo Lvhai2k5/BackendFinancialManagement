@@ -47,6 +47,10 @@ public class FamilyAccess {
         return isOwner(m) || m.getPermissions().contains(FamilyPermission.WRITE);
     }
 
+    public boolean canRead(Membership m) {
+        return isOwner(m) || m.getPermissions().contains(FamilyPermission.READ);
+    }
+
     public boolean canApprove(Membership m) {
         return isOwner(m) || m.getPermissions().contains(FamilyPermission.APPROVAL);
     }

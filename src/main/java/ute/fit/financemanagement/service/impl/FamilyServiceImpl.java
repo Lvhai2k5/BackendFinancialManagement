@@ -49,6 +49,7 @@ public class FamilyServiceImpl implements FamilyService {
     @Transactional(readOnly = true)
     public List<FamilyResponses.Summary> listMine(Long personId) {
         return familyRepository.findAllByMember(personId).stream()
+                .filter(family -> access.canRead(access.requireMember(family, personId)))
                 .map(f -> summary(f, personId))
                 .toList();
     }
@@ -57,7 +58,10 @@ public class FamilyServiceImpl implements FamilyService {
     @Transactional(readOnly = true)
     public FamilyResponses.Detail detail(Long familyId, Long personId) {
         Family family = access.requireFamily(familyId);
-        access.requireMember(family, personId);
+        Membership membership = access.requireMember(family, personId);
+        if (!access.canRead(membership)) {
+            throw ApiException.forbidden("Bạn không có quyền xem gia đình này");
+        }
         return detailOf(family, personId);
     }
 
@@ -147,10 +151,7 @@ public class FamilyServiceImpl implements FamilyService {
         if (access.isOwner(requireTarget(family, memberId))) {
             throw ApiException.badRequest("Người này đã là Chủ hộ.");
         }
-        family.changeFamilyMemberRole(memberId, FamilyMemberRole.OWNER);
-        family.adjustPermission(memberId, List.of(FamilyPermission.values()));
-        family.changeFamilyMemberRole(personId, FamilyMemberRole.MEMBER);
-        family.adjustPermission(personId, List.of(FamilyPermission.READ, FamilyPermission.WRITE));
+        family.transferOwnership(personId, memberId);
         familyRepository.save(family);
         return detailOf(family, personId);
     }
