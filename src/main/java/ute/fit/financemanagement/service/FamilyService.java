@@ -3,12 +3,15 @@ package ute.fit.financemanagement.service;
 import java.util.List;
 import ute.fit.financemanagement.dto.request.FamilyRequests;
 import ute.fit.financemanagement.dto.response.FamilyResponses;
+import ute.fit.financemanagement.dto.response.OverviewResponse;
 
 public interface FamilyService {
 
     List<FamilyResponses.Summary> listMine(Long personId);
 
     FamilyResponses.Detail detail(Long familyId, Long personId);
+
+    OverviewResponse overview(Long familyId, Long personId);
 
     FamilyResponses.Detail create(FamilyRequests.CreateFamily request, Long personId);
 

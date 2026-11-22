@@ -2,6 +2,7 @@ package ute.fit.financemanagement.service.impl;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Collections;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -13,6 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ute.fit.financemanagement.dto.request.FamilyRequests;
 import ute.fit.financemanagement.dto.response.FamilyResponses;
+import ute.fit.financemanagement.dto.response.OverviewResponse;
+import ute.fit.financemanagement.dto.response.TransactionResponse;
 import ute.fit.financemanagement.entity.Account;
 import ute.fit.financemanagement.entity.Family;
 import ute.fit.financemanagement.enums.FamilyMemberRole;
@@ -20,6 +23,7 @@ import ute.fit.financemanagement.repository.AccountRepository;
 import ute.fit.financemanagement.entity.FinancialCategory;
 import ute.fit.financemanagement.entity.Membership;
 import ute.fit.financemanagement.entity.Person;
+import ute.fit.financemanagement.entity.Transaction;
 import ute.fit.financemanagement.enums.CategoryStatus;
 import ute.fit.financemanagement.enums.FamilyPermission;
 import ute.fit.financemanagement.enums.TransactionStatus;
@@ -49,6 +53,7 @@ public class FamilyServiceImpl implements FamilyService {
     @Transactional(readOnly = true)
     public List<FamilyResponses.Summary> listMine(Long personId) {
         return familyRepository.findAllByMember(personId).stream()
+                .filter(family -> access.canRead(access.requireMember(family, personId)))
                 .map(f -> summary(f, personId))
                 .toList();
     }
@@ -57,8 +62,54 @@ public class FamilyServiceImpl implements FamilyService {
     @Transactional(readOnly = true)
     public FamilyResponses.Detail detail(Long familyId, Long personId) {
         Family family = access.requireFamily(familyId);
-        access.requireMember(family, personId);
+        Membership membership = access.requireMember(family, personId);
+        if (!access.canRead(membership)) {
+            throw ApiException.forbidden("Bạn không có quyền xem gia đình này");
+        }
         return detailOf(family, personId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OverviewResponse overview(Long familyId, Long personId) {
+        Family family = access.requireFamily(familyId);
+        Membership membership = access.requireMember(family, personId);
+        if (!access.canRead(membership)) {
+            throw ApiException.forbidden("Bạn không có quyền xem gia đình này");
+        }
+
+        List<FinancialCategory> categories = categoryRepository
+                .findByFamilyIdOrderByFinancialCategoryId(familyId);
+        List<Long> categoryIds = ids(categories);
+        BigDecimal income = categoryIds.isEmpty() ? BigDecimal.ZERO
+                : transactionRepository.sumAmount(categoryIds, TransactionType.INCOME,
+                        TransactionStatus.APPROVED);
+        BigDecimal expense = categoryIds.isEmpty() ? BigDecimal.ZERO
+                : transactionRepository.sumAmount(categoryIds, TransactionType.EXPENSE,
+                        TransactionStatus.APPROVED);
+        BigDecimal initialBalance = categories.stream().map(FinancialCategory::getInitialBalance)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        List<OverviewResponse.CategoryProgress> progress = categories.stream().map(category -> {
+            BigDecimal spent = spent(category.getFinancialCategoryId());
+            BigDecimal limit = category.getInitialBalance();
+            BigDecimal percent = limit.signum() == 0 ? BigDecimal.ZERO
+                    : spent.multiply(BigDecimal.valueOf(100))
+                            .divide(limit, 2, RoundingMode.HALF_UP);
+            int allocationPercent = initialBalance.signum() == 0 ? 0
+                    : limit.multiply(BigDecimal.valueOf(100))
+                            .divide(initialBalance, 0, RoundingMode.HALF_UP).intValue();
+            return new OverviewResponse.CategoryProgress(category.getFinancialCategoryId(),
+                    category.getName(), spent, limit, percent, category.getCategoryStatus().name(),
+                    allocationPercent, category.getAmountOfWarning(), category.getAmountOfEmergency());
+        }).toList();
+
+        List<TransactionResponse> recent = categoryIds.isEmpty() ? Collections.emptyList()
+                : overviewTransactions(transactionRepository
+                        .findTop10ByFinancialCategoryIdInAndTransactionStatusOrderByCreatedAtDescTransactionIdDesc(
+                                categoryIds, TransactionStatus.APPROVED), categories);
+        return new OverviewResponse(familyId, initialBalance.add(income).subtract(expense),
+                income, expense, progress, recent);
     }
 
     @Override
@@ -147,10 +198,7 @@ public class FamilyServiceImpl implements FamilyService {
         if (access.isOwner(requireTarget(family, memberId))) {
             throw ApiException.badRequest("Người này đã là Chủ hộ.");
         }
-        family.changeFamilyMemberRole(memberId, FamilyMemberRole.OWNER);
-        family.adjustPermission(memberId, List.of(FamilyPermission.values()));
-        family.changeFamilyMemberRole(personId, FamilyMemberRole.MEMBER);
-        family.adjustPermission(personId, List.of(FamilyPermission.READ, FamilyPermission.WRITE));
+        family.transferOwnership(personId, memberId);
         familyRepository.save(family);
         return detailOf(family, personId);
     }
@@ -243,6 +291,25 @@ public class FamilyServiceImpl implements FamilyService {
         return new FamilyResponses.Category(c.getFinancialCategoryId(), c.getName(), percent, spent,
                 c.getInitialBalance(), c.getCategoryStatus().name(), c.getAmountOfWarning(),
                 c.getAmountOfEmergency(), c.getAmountOfApproval());
+    }
+
+    private List<TransactionResponse> overviewTransactions(List<Transaction> rows,
+                                                           List<FinancialCategory> categories) {
+        Map<Long, FinancialCategory> categoryById = categories.stream()
+                .collect(Collectors.toMap(FinancialCategory::getFinancialCategoryId, Function.identity()));
+        Map<Long, String> personNames = personRepository
+                .findAllById(rows.stream().map(Transaction::getCreatedPersonId).distinct().toList())
+                .stream().collect(Collectors.toMap(Person::getPersonId, Person::getName));
+        return rows.stream().map(transaction -> {
+            FinancialCategory category = categoryById.get(transaction.getFinancialCategoryId());
+            return new TransactionResponse(transaction.getTransactionId(), transaction.getContent(),
+                    transaction.getAmount(), transaction.getTransactionType().name(),
+                    transaction.getTransactionStatus().name(), transaction.getFinancialCategoryId(),
+                    category == null ? "" : category.getName(),
+                    category == null ? null : category.getFamilyId(), transaction.getCreatedPersonId(),
+                    personNames.getOrDefault(transaction.getCreatedPersonId(), "?"),
+                    transaction.getCreatedAt());
+        }).toList();
     }
 
     private BigDecimal spent(Long categoryId) {

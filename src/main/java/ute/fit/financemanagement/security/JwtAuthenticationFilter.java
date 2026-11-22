@@ -13,7 +13,10 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import ute.fit.financemanagement.entity.Account;
+import ute.fit.financemanagement.enums.AccountStatus;
 import ute.fit.financemanagement.exception.ApiException;
+import ute.fit.financemanagement.repository.AccountRepository;
 
 /** Đọc `Authorization: Bearer <token>`; token sai thì bỏ qua để entry point trả 401. */
 @Component
@@ -21,6 +24,7 @@ import ute.fit.financemanagement.exception.ApiException;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final AccountRepository accountRepository;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
@@ -29,9 +33,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (header != null && header.startsWith("Bearer ")) {
             try {
                 CurrentUser user = jwtService.parseAccess(header.substring(7));
-                var auth = new UsernamePasswordAuthenticationToken(user, null,
-                        List.of(new SimpleGrantedAuthority("ROLE_" + user.role().name())));
-                SecurityContextHolder.getContext().setAuthentication(auth);
+                Account account = accountRepository.findByPersonId(user.personId()).orElse(null);
+                if (account == null || account.getAccountStatus() != AccountStatus.ACTIVE
+                        || account.isActivationPending()) {
+                    SecurityContextHolder.clearContext();
+                } else {
+                    var auth = new UsernamePasswordAuthenticationToken(user, null,
+                            List.of(new SimpleGrantedAuthority("ROLE_" + user.role().name())));
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                }
             } catch (ApiException ignored) {
                 SecurityContextHolder.clearContext();
             }

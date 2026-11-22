@@ -46,7 +46,11 @@ public class NotificationServiceImpl implements NotificationService {
     public List<NotificationResponse> listMine(Long personId) {
         List<NotificationResponse> result = new ArrayList<>();
         for (Family family : familyRepository.findAllByMember(personId)) {
-            boolean canApprove = access.canApprove(access.requireMember(family, personId));
+            var membership = access.requireMember(family, personId);
+            if (!access.canRead(membership)) {
+                continue;
+            }
+            boolean canApprove = access.canApprove(membership);
             List<FinancialCategory> categories = categoryRepository
                     .findByFamilyIdOrderByFinancialCategoryId(family.getFamilyId());
             if (categories.isEmpty()) {

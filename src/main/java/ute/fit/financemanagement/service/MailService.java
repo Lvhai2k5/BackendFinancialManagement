@@ -49,7 +49,7 @@ public class MailService {
                 """.formatted(fromName, action, code, ttlMinutes);
         try {
             MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, false, StandardCharsets.UTF_8.name());
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
             helper.setFrom(username, fromName);
             helper.setTo(toEmail);
             helper.setSubject(subject);

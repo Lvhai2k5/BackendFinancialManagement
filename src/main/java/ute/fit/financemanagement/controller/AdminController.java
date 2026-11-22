@@ -2,6 +2,9 @@ package ute.fit.financemanagement.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -34,11 +37,14 @@ import ute.fit.financemanagement.service.AdminService;
 @RestController
 @RequestMapping("/api/v1/admin")
 @RequiredArgsConstructor
+@Tag(name = "Admin")
+@SecurityRequirement(name = "bearerAuth")
 public class AdminController {
 
     private final AdminService adminService;
 
     @GetMapping("/dashboard")
+    @Operation(summary = "Lấy số liệu tổng quan quản trị")
     public Dashboard dashboard(@RequestParam(defaultValue = "7") int days) {
         return adminService.dashboard(days);
     }
@@ -46,6 +52,7 @@ public class AdminController {
     // ----- accounts -----
 
     @GetMapping("/accounts")
+    @Operation(summary = "Tìm kiếm và phân trang tài khoản")
     public PageResponse<AccountSummary> accounts(@RequestParam(required = false) String keyword,
                                                  @RequestParam(required = false) AccountRole accountRole,
                                                  @RequestParam(required = false) AccountStatus accountStatus,
@@ -55,16 +62,19 @@ public class AdminController {
     }
 
     @GetMapping("/accounts/stats")
+    @Operation(summary = "Lấy thống kê tài khoản")
     public AccountStats accountStats() {
         return adminService.accountStats();
     }
 
     @PatchMapping("/accounts/{accountId}/lock")
+    @Operation(summary = "Khóa tài khoản")
     public AccountSummary lock(@PathVariable Long accountId, HttpServletRequest request) {
         return adminService.lockAccount(accountId, clientIp(request));
     }
 
     @PatchMapping("/accounts/{accountId}/unlock")
+    @Operation(summary = "Mở khóa tài khoản")
     public AccountSummary unlock(@PathVariable Long accountId, HttpServletRequest request) {
         return adminService.unlockAccount(accountId, clientIp(request));
     }
@@ -72,6 +82,7 @@ public class AdminController {
     // ----- support tickets -----
 
     @GetMapping("/support-tickets")
+    @Operation(summary = "Tìm kiếm và phân trang yêu cầu hỗ trợ")
     public PageResponse<AdminTicket> tickets(@RequestParam(required = false) String keyword,
                                              @RequestParam(required = false) TicketStatus ticketStatus,
                                              @RequestParam(defaultValue = "0") int page,
@@ -80,16 +91,19 @@ public class AdminController {
     }
 
     @GetMapping("/support-tickets/counts")
+    @Operation(summary = "Lấy số lượng yêu cầu hỗ trợ theo trạng thái")
     public TicketCounts ticketCounts() {
         return adminService.ticketCounts();
     }
 
     @PatchMapping("/support-tickets/{ticketId}/view")
+    @Operation(summary = "Đánh dấu đã xem yêu cầu hỗ trợ")
     public AdminTicket view(@PathVariable Long ticketId, HttpServletRequest request) {
         return adminService.markTicketViewed(ticketId, clientIp(request));
     }
 
     @PostMapping("/support-tickets/{ticketId}/respond")
+    @Operation(summary = "Trả lời yêu cầu hỗ trợ")
     public ResponseEntity<AdminTicket> respond(@PathVariable Long ticketId,
                                                @Valid @RequestBody RespondTicket body,
                                                HttpServletRequest request) {
@@ -99,6 +113,7 @@ public class AdminController {
     // ----- activity logs -----
 
     @GetMapping("/activity-logs")
+    @Operation(summary = "Tìm kiếm nhật ký hoạt động theo bộ lọc")
     public PageResponse<ActivityLogItem> logs(@RequestParam(required = false) String keyword,
                                               @RequestParam(required = false) ActionType actionType,
                                               @RequestParam(required = false) ActivityStatus activityStatus,
@@ -112,6 +127,7 @@ public class AdminController {
     }
 
     @GetMapping("/activity-logs/stats")
+    @Operation(summary = "Lấy thống kê nhật ký hoạt động")
     public ActivityLogStats logStats() {
         return adminService.logStats();
     }

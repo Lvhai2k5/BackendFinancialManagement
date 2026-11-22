@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -31,6 +32,8 @@ public class Family {
 
     @Column(nullable = false)
     private String name;
+
+    private UUID inviteVersion = UUID.randomUUID();
 
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @JoinColumn(name = "familyId", nullable = false)
@@ -69,6 +72,19 @@ public class Family {
             throw new IllegalStateException("Gia đình phải luôn có ít nhất 1 Owner");
         }
         memberships.remove(target);
+        rotateInviteVersion();
+    }
+
+    public void transferOwnership(Long ownerId, Long successorId) {
+        Membership owner = requireMembership(ownerId);
+        Membership successor = requireMembership(successorId);
+        if (!owner.isOwner() || successor.isOwner() || countOwners() != 1) {
+            throw new IllegalStateException("Không thể chuyển vai trò Chủ hộ");
+        }
+        successor.changeRole(FamilyMemberRole.OWNER);
+        owner.changeRole(FamilyMemberRole.MEMBER);
+        owner.replacePermissions(List.of(FamilyPermission.READ, FamilyPermission.WRITE));
+        rotateInviteVersion();
     }
 
     public void changeFamilyMemberRole(Long personId, FamilyMemberRole newRole) {
@@ -112,5 +128,9 @@ public class Family {
 
     private long countOwners() {
         return memberships.stream().filter(Membership::isOwner).count();
+    }
+
+    private void rotateInviteVersion() {
+        inviteVersion = UUID.randomUUID();
     }
 }

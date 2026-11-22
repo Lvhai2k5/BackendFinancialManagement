@@ -5,6 +5,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -24,33 +26,61 @@ public class OtpService {
 
     private final Map<String, Entry> pending = new ConcurrentHashMap<>();
     private final Map<String, Instant> verified = new ConcurrentHashMap<>();
+    private final Map<String, Instant> lastSentAt = new ConcurrentHashMap<>();
+    private final Map<String, AtomicInteger> failedAttempts = new ConcurrentHashMap<>();
     private final SecureRandom random = new SecureRandom();
     private final String fixedCode;
     private final Duration ttl;
+    private final Duration resendCooldown;
+    private final int maxAttempts;
     private final MailService mailService;
 
     public OtpService(@Value("${app.otp.fixed-code:}") String fixedCode,
                       @Value("${app.otp.ttl-minutes:5}") long ttlMinutes,
+                      @Value("${app.otp.resend-cooldown-seconds:60}") long resendCooldownSeconds,
+                      @Value("${app.otp.max-attempts:5}") int maxAttempts,
                       MailService mailService) {
         this.fixedCode = fixedCode == null ? "" : fixedCode.trim();
         this.ttl = Duration.ofMinutes(ttlMinutes);
+        this.resendCooldown = Duration.ofSeconds(resendCooldownSeconds);
+        this.maxAttempts = maxAttempts;
         this.mailService = mailService;
     }
 
     public void send(String email, OtpPurpose purpose) {
+        String key = key(email, purpose);
+        Instant now = Instant.now();
+        AtomicBoolean allowed = new AtomicBoolean();
+        lastSentAt.compute(key, (ignored, lastSent) -> {
+            if (lastSent != null && now.isBefore(lastSent.plus(resendCooldown))) {
+                return lastSent;
+            }
+            allowed.set(true);
+            return now;
+        });
+        if (!allowed.get()) {
+            throw ApiException.tooManyRequests("Vui lòng đợi trước khi yêu cầu gửi lại mã OTP");
+        }
+
         boolean mailOn = mailService.isEnabled();
         // Đã gửi mail thật thì luôn dùng mã ngẫu nhiên; mã cố định chỉ để dev khi chưa có mail.
         String code = (!mailOn && !fixedCode.isEmpty())
                 ? fixedCode : String.format("%06d", random.nextInt(1_000_000));
-        if (mailOn) {
-            mailService.sendOtp(email, code, purpose, ttl.toMinutes());
-            log.info("[OTP] Đã gửi mã {} tới email {}", purpose, email);
-        } else {
-            log.info("[OTP] (chưa cấu hình mail) {} cho {}: {} (hết hạn sau {} phút)",
-                    purpose, email, code, ttl.toMinutes());
+        try {
+            if (mailOn) {
+                mailService.sendOtp(email, code, purpose, ttl.toMinutes());
+                log.info("[OTP] Đã gửi mã {} tới email {}", purpose, email);
+            } else {
+                log.info("[OTP] (chưa cấu hình mail) {} cho {}: {} (hết hạn sau {} phút)",
+                        purpose, email, code, ttl.toMinutes());
+            }
+            pending.put(key, new Entry(code, Instant.now().plus(ttl)));
+            failedAttempts.remove(key);
+            verified.remove(key);
+        } catch (RuntimeException e) {
+            lastSentAt.remove(key, now);
+            throw e;
         }
-        pending.put(key(email, purpose), new Entry(code, Instant.now().plus(ttl)));
-        verified.remove(key(email, purpose));
     }
 
     public void verify(String email, OtpPurpose purpose, String otp) {
@@ -58,12 +88,20 @@ public class OtpService {
         Entry entry = pending.get(key);
         if (entry == null || Instant.now().isAfter(entry.expiresAt())) {
             pending.remove(key);
+            failedAttempts.remove(key);
             throw ApiException.badRequest("Mã OTP đã hết hạn, vui lòng gửi lại mã");
         }
         if (!entry.code().equals(otp.trim())) {
+            int attempts = failedAttempts.computeIfAbsent(key, ignored -> new AtomicInteger()).incrementAndGet();
+            if (attempts >= maxAttempts) {
+                pending.remove(key);
+                failedAttempts.remove(key);
+                throw ApiException.tooManyRequests("Bạn đã nhập sai OTP quá số lần cho phép; vui lòng yêu cầu mã mới");
+            }
             throw ApiException.badRequest("Mã OTP không đúng");
         }
         pending.remove(key);
+        failedAttempts.remove(key);
         verified.put(key, Instant.now().plus(Duration.ofMinutes(10)));
     }
 
