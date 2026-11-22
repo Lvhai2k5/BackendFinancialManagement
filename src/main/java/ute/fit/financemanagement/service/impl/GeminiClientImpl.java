@@ -49,9 +49,24 @@ public class GeminiClientImpl implements GeminiClient {
 
     @Override
     public String generateJson(String systemPrompt, String userText, Map<String, Object> jsonSchema) {
+        return call(systemPrompt, List.<Map<String, Object>>of(Map.of("text", userText)), jsonSchema);
+    }
+
+    @Override
+    public String generateJsonFromImage(String systemPrompt, String mimeType, String base64Image,
+                                        Map<String, Object> jsonSchema) {
+        return call(systemPrompt,
+                List.<Map<String, Object>>of(
+                        Map.of("inlineData", Map.of("mimeType", mimeType, "data", base64Image)),
+                        Map.of("text", "Nhận diện đồ vật chính trong ảnh này.")),
+                jsonSchema);
+    }
+
+    private String call(String systemPrompt, List<Map<String, Object>> userParts,
+                        Map<String, Object> jsonSchema) {
         if (apiKey.isEmpty()) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,
-                    "Ghi chi tiêu bằng giọng nói chưa được cấu hình trên máy chủ.");
+                    "Tính năng nhận diện bằng AI chưa được cấu hình trên máy chủ.");
         }
         Map<String, Object> generationConfig = new HashMap<>();
         generationConfig.put("temperature", 0);
@@ -63,7 +78,7 @@ public class GeminiClientImpl implements GeminiClient {
         }
         Map<String, Object> body = Map.of(
                 "systemInstruction", Map.of("parts", List.of(Map.of("text", systemPrompt))),
-                "contents", List.of(Map.of("role", "user", "parts", List.of(Map.of("text", userText)))),
+                "contents", List.of(Map.of("role", "user", "parts", userParts)),
                 "generationConfig", generationConfig);
 
         for (int attempt = 1; ; attempt++) {
