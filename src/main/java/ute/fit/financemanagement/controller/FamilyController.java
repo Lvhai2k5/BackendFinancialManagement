@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ute.fit.financemanagement.dto.request.FamilyRequests;
 import ute.fit.financemanagement.dto.response.FamilyResponses;
+import ute.fit.financemanagement.dto.response.OverviewResponse;
 import ute.fit.financemanagement.security.CurrentUser;
 import ute.fit.financemanagement.service.FamilyService;
 
@@ -40,6 +41,12 @@ public class FamilyController {
     @Operation(summary = "Xem chi tiết gia đình, thành viên và hạng mục")
     public FamilyResponses.Detail detail(@PathVariable Long familyId) {
         return familyService.detail(familyId, CurrentUser.get().personId());
+    }
+
+    @GetMapping("/families/{familyId}/overview")
+    @Operation(summary = "Lấy tổng quan thu chi, danh mục và 10 giao dịch gần nhất")
+    public OverviewResponse overview(@PathVariable Long familyId) {
+        return familyService.overview(familyId, CurrentUser.get().personId());
     }
 
     @PostMapping("/families")

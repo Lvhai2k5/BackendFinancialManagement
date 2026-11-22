@@ -21,6 +21,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     List<Transaction> findByFinancialCategoryIdInAndTransactionStatusIn(
             Collection<Long> categoryIds, Collection<TransactionStatus> statuses);
 
+    List<Transaction> findTop10ByFinancialCategoryIdInAndTransactionStatusOrderByCreatedAtDescTransactionIdDesc(
+            Collection<Long> categoryIds, TransactionStatus status);
+
     Optional<Transaction> findByCreatedPersonIdAndClientRequestId(Long personId, UUID clientRequestId);
 
     @Query("select coalesce(sum(t.amount), 0) from Transaction t "
