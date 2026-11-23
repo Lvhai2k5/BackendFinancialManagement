@@ -11,6 +11,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 /** Format lỗi thống nhất theo TECH-API.md mục 3. */
 @Slf4j
@@ -30,6 +31,12 @@ public class GlobalExceptionHandler {
                 .map(f -> f.getDefaultMessage())
                 .orElse("Dữ liệu không hợp lệ");
         return build(HttpStatus.BAD_REQUEST, message, req);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleUploadTooLarge(
+            MaxUploadSizeExceededException e, HttpServletRequest req) {
+        return build(HttpStatus.PAYLOAD_TOO_LARGE, "Ảnh tối đa 5 MiB", req);
     }
 
     /** Lỗi bất biến của entity (DDD): tham số sai → 400. */

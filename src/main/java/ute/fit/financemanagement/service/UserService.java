@@ -11,6 +11,10 @@ public interface UserService {
 
     UserResponse updateMe(Long personId, UserRequests.UpdateProfile request);
 
+    UserResponse uploadAvatar(Long personId, byte[] content);
+
+    void changePassword(Long personId, UserRequests.ChangePassword request);
+
     SupportTicketResponse createTicket(Long personId, UserRequests.CreateSupportTicket request);
 
     List<SupportTicketResponse> myTickets(Long personId);

@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.http.MediaType;
 import ute.fit.financemanagement.dto.request.UserRequests;
 import ute.fit.financemanagement.dto.response.SupportTicketResponse;
 import ute.fit.financemanagement.dto.response.UserResponse;
@@ -39,6 +42,19 @@ public class UserController {
     @Operation(summary = "Cập nhật hồ sơ của người dùng hiện tại")
     public UserResponse updateMe(@Valid @RequestBody UserRequests.UpdateProfile request) {
         return userService.updateMe(CurrentUser.get().personId(), request);
+    }
+
+    @PostMapping(value = "/users/me/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Tải ảnh đại diện của người dùng hiện tại")
+    public UserResponse uploadAvatar(@RequestPart("avatar") MultipartFile avatar) throws java.io.IOException {
+        return userService.uploadAvatar(CurrentUser.get().personId(), avatar.getBytes());
+    }
+
+    @PutMapping("/users/me/password")
+    @Operation(summary = "Đổi mật khẩu khi người dùng đã đăng nhập")
+    public ResponseEntity<Void> changePassword(@Valid @RequestBody UserRequests.ChangePassword request) {
+        userService.changePassword(CurrentUser.get().personId(), request);
+        return ResponseEntity.noContent().build();
     }
 
     /** Màn "Gửi phản ánh & khiếu nại" của Mobile. */
