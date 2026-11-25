@@ -18,6 +18,7 @@
         <jjwt.version>0.12.6</jjwt.version>
         <!-- Vá CVE CRITICAL của Tomcat 11.0.24 (Trivy). Xóa dòng này khi Spring Boot đã kèm Tomcat >= 11.0.25 -->
         <tomcat.version>11.0.25</tomcat.version>
+        <cloudinary.version>2.6.0</cloudinary.version>
     </properties>
     <dependencies>
         <dependency>
@@ -39,6 +40,11 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.cloudinary</groupId>
+            <artifactId>cloudinary-http5</artifactId>
+            <version>${cloudinary.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springdoc</groupId>
